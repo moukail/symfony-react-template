@@ -1,0 +1,20 @@
+---
+- name: prepare site
+  hosts: database
+  become: true
+
+  vars_prompt:
+    - name: db_root_password
+      prompt: Enter root password
+      private: yes
+    - name: db_password
+      prompt: Enter DB password
+      private: yes
+
+  tasks:
+    - ping: ~
+    - name: CREATE USER
+      command: mysql -u root -p{{ db_root_password }} -e "CREATE USER IF NOT EXISTS '{{ db_user }}'@'%' IDENTIFIED BY '{{ db_password }}';FLUSH PRIVILEGES;"
+
+    - name: CREATE DB WITH PRIVILEGES
+      command: mysql -u root -p{{ db_root_password }} -e "CREATE DATABASE IF NOT EXISTS `{{ db_name }}`; GRANT ALTER, CREATE, DELETE, DROP, INDEX, INSERT, REFERENCES, SELECT, UPDATE ON `{{ db_name }}`.* TO '{{ db_user }}'@'%' WITH GRANT OPTION;FLUSH PRIVILEGES;"

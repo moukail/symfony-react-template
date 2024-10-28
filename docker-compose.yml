@@ -1,0 +1,81 @@
+version: '3.9'
+services:
+  backend:
+    container_name: $HOST_NAME
+    user: root
+    build:
+      context: .docker/backend
+      dockerfile: Dockerfile
+    expose:
+      - 8000
+    volumes:
+      - ./backend:/var/www
+      #- certs:/var/www/certs
+#    environment:
+#      - APP_ENV=dev
+#      - APP_DEBUG=1
+#      - PHP_IDE_CONFIG=serverName=web
+ #     - DATABASE_URL=mysql://root:root@tv-database:3306/tv
+      #- DATABASE_URL=mysql://mytv_prod:meknes@db.moukafih.nl:3306/mytv_prod?serverVersion=8.0&charset=utf8mb4
+      #- APP_SECRET=${APP_SECRET}
+      #- DATABASE_URL=mysql://${DB_USER}:${DB_PASS}@swk-database:3306/${MYSQL_DATABASE}?serverVersion=5.7
+    env_file:
+      - ./.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - database
+    networks:
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.$HOST_NAME-api.rule=Host(`$HOST_NAME-api.app.localhost`)"
+      - "traefik.http.routers.$HOST_NAME-api.tls=true"
+    tty: true
+
+  frontend:
+    user: root
+    build:
+      context: .docker/frontend
+      dockerfile: Dockerfile
+    expose:
+      - 3000
+    volumes:
+      - ./frontend:/var/www
+    depends_on:
+      - backend
+    networks:
+      - traefik_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.$HOST_NAME-app.rule=Host(`$HOST_NAME.app.localhost`)"
+      - "traefik.http.routers.$HOST_NAME-app.tls=true"
+    tty: true
+
+  database:
+    image: mysql:9.1
+    container_name: $DATABASE_HOST
+    restart: unless-stopped
+    expose:
+      - 3306
+    volumes:
+      - database:/var/lib/mysql
+      #- ./certs:/etc/mysql/certs
+      #- ./.docker/data:/docker-entrypoint-initdb.d
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=$DATABASE_NAME
+    networks:
+      - traefik_net
+
+volumes:
+  database:
+    driver: local
+  vendor:
+    driver: local
+  certs:
+    driver: local
+
+networks:
+  traefik_net:
+    external: true

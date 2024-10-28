@@ -1,0 +1,111 @@
+name: Symfony
+run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend/
+    steps:
+    - uses: actions/checkout@v4
+    - uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.3'
+        #extensions: mbstring, intl
+        #coverage: xdebug
+        tools: symfony, codeception
+
+    - name: Validate composer.json and composer.lock
+      run: |
+        composer validate --strict
+
+    - name: Cache Composer packages
+      id: composer-cache
+      uses: actions/cache@v3
+      with:
+        path: vendor
+        key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-php-
+
+    - name: prepare env
+      run: |
+        sed -i "s/^MYSQL_PASSWORD=[^ ]*/MYSQL_PASSWORD=${{secrets.MYSQL_PASSWORD}}/" .env
+        mkdir -p config/jwt
+        openssl genpkey -out config/jwt/private.pem -algorithm RSA -pkeyopt rsa_keygen_bits:4096
+        openssl rsa -pubout -in config/jwt/private.pem -out config/jwt/public.pem
+        #chmod 600 config/jwt/private.pem config/jwt/public.pem
+
+    - name: Install Dependencies
+      run: composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
+
+    - name: Remove Dev Dependencies
+      run: composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist --no-dev --optimize-autoloader
+
+    - name: rsync deployment
+      env:
+        dest: '/var/www/${{vars.DOMAIN_NAME}}/backend'
+      run: |
+        echo "::group::Prepare Certificate"
+        echo "${{secrets.OPENSSH_KEY}}" > id_ed25519
+        chmod 600 ./id_ed25519
+        
+        echo "::group::Deploy"
+        rsync -avz --delete --rsync-path="sudo rsync" -e 'ssh -i ./id_ed25519 -o StrictHostKeyChecking=no' . ${{vars.SSH_USER}}@${{vars.DOMAIN_NAME}}:${{env.dest}}
+        ssh -i ./id_ed25519 ${{vars.SSH_USER}}@${{vars.DOMAIN_NAME}} "cd ${{env.dest}}; sudo chown nginx:nginx -R ./; chmod a+x -R ./bin/console; sudo bin/console cache:clear; sudo bin/console doctrine:migrations:migrate --no-interaction; sudo chmod a+rw -R ./var;"
+
+  frontend:
+    runs-on: ubuntu-latest
+    needs: backend
+    strategy:
+      matrix:
+        node-version: [ 22.x ]
+
+    defaults:
+      run:
+        working-directory: ./frontend/
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        #cache: 'npm'
+
+    - name: Cache Node.js modules
+      id: node-cache
+      uses: actions/cache@v3
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-
+
+    - name: Install dependencies
+      run: |
+        npm install
+        npm run build
+
+    - name: rsync deployment
+      env:
+        dest: '/var/www/${{vars.DOMAIN_NAME}}/frontend'
+      run: |
+        cd dist
+        echo "::group::Prepare Certificate"
+        echo "${{secrets.OPENSSH_KEY}}" > id_ed25519
+        chmod 600 ./id_ed25519
+          
+        echo "::group::Deploy"    
+        rsync -avz --delete --rsync-path="sudo rsync" -e 'ssh -i ./id_ed25519 -o StrictHostKeyChecking=no' . ${{vars.SSH_USER}}@${{vars.DOMAIN_NAME}}:${{env.dest}}

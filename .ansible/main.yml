@@ -1,0 +1,65 @@
+---
+- name: prepare site
+  hosts: web
+  become: true
+
+  vars:
+    root_dir: /var/www/{{ inventory_hostname }}
+    acme_email: moukafih@live.nl
+
+  tasks:
+    - ping: ~
+    - name: Create project directory and set its permissions
+      become: true
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "nginx"
+        group: "nginx"
+        recurse: yes
+      loop:
+        - "{{ root_dir }}"
+        - "{{ root_dir }}/frontend"
+        - "{{ root_dir }}/backend/var/log"
+
+    - name: Creating index.html file
+      template:
+        src: index.html
+        dest: "{{ root_dir }}/frontend"
+        owner: nginx
+        group: nginx
+        mode: 0644
+
+    - name: check if letsencrypt dir exists
+      stat:
+        path: /etc/letsencrypt/live/{{ inventory_hostname }}/
+      register: letsencrypt_dir
+
+    - name: Stop Nginx
+      systemd:
+        name: nginx.service
+        state: stopped
+      when: not letsencrypt_dir.stat.exists
+
+    - name: Create letsencrypt certificate
+      command: certbot certonly --standalone --non-interactive --rsa-key-size 2048  --agree-tos --no-eff-email --email {{ acme_email }} -d {{ inventory_hostname }}
+      when: not letsencrypt_dir.stat.exists
+
+    - name: Creating NGINX conf file
+      template:
+        src: https.conf
+        dest: "/etc/nginx/conf.d/{{ inventory_hostname }}.conf"
+        owner: nginx
+        group: nginx
+        mode: 0644
+      notify: Restart Nginx
+      tags:
+        - nginx
+        - letsencrypt
+
+  handlers:
+    - name: Restart Nginx
+      become: true
+      systemd:
+        name: nginx.service
+        state: restarted
