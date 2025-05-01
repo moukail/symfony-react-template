@@ -1,3 +1,7 @@
+ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook .ansible/db.yml -i .ansible/hosts.ini
+ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook .ansible/web.yml -i .ansible/hosts.ini
+
+
 # Install Python3 on local
 sudo apt install python3 python3-pip python3-pymysql
 # Install Ansible Collections on host

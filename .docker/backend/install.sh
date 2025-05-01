@@ -19,10 +19,10 @@ symfony composer require php:^8.3.0
 symfony composer require --no-interaction symfony/serializer-pack symfony/uid symfony/validator \
   doctrine/doctrine-migrations-bundle doctrine/orm gesdinet/jwt-refresh-token-bundle nelmio/cors-bundle
 
-mkdir -p config/secrets
-#openssl genpkey -out config/secrets/private.pem -aes256 -algorithm rsa -pkeyopt rsa_keygen_bits:4096
-#openssl pkey -in config/secrets/private.pem -out config/secrets/public.pem -pubout
-openssl req -x509 -newkey rsa:2048 -keyout config/secrets/private.pem -out config/secrets/public.pem -days 365 -nodes -subj "/CN=app.localhost"
+mkdir -p config/jwt
+#openssl genpkey -out config/jwt/private.pem -aes256 -algorithm rsa -pkeyopt rsa_keygen_bits:4096
+#openssl pkey -in config/jwt/private.pem -out config/jwt/public.pem -pubout
+openssl req -x509 -newkey rsa:2048 -keyout config/jwt/private.pem -out config/jwt/public.pem -days 365 -nodes -subj "/CN=app.localhost"
 
 echo "-------------------------------------------------------------------"
 echo "-               require dev packages                              -"

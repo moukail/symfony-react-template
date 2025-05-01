@@ -36,14 +36,14 @@
       register: letsencrypt_dir
 
     - name: Stop Nginx
+      when: not letsencrypt_dir.stat.exists
       systemd:
         name: nginx.service
         state: stopped
-      when: not letsencrypt_dir.stat.exists
 
     - name: Create letsencrypt certificate
-      command: certbot certonly --standalone --non-interactive --rsa-key-size 2048  --agree-tos --no-eff-email --email {{ acme_email }} -d {{ inventory_hostname }}
       when: not letsencrypt_dir.stat.exists
+      command: certbot certonly --standalone --non-interactive --key-type rsa --preferred-challenges http --agree-tos --no-eff-email --email {{ acme_email }} -d {{ inventory_hostname }}
 
     - name: Creating NGINX conf file
       template:
